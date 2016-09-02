@@ -5,6 +5,7 @@
 extern crate rand;
 
 use rand::Rand;
+use std::borrow::Borrow;
 use std::cmp::max;
 use std::hash::{Hash, Hasher};
 
@@ -55,11 +56,11 @@ impl<K> $CountMinSketch<K>
         Ok(cms)
     }
 
-    pub fn add(&mut self, key: K, value: $Counter) {
+    pub fn add<Q: ?Sized>(&mut self, key: &Q, value: $Counter) where Q: Hash, K: Borrow<Q> {
         let mut hashes = [0u64, 0u64];
         let lowest = (0..self.k_num)
             .map(|k_i| {
-                let offset = self.offset(&mut hashes, &key, k_i);
+                let offset = self.offset(&mut hashes, key, k_i);
                 self.offsets[k_i] = offset;
                 self.counters[k_i][offset]
             })
@@ -73,15 +74,15 @@ impl<K> $CountMinSketch<K>
         }
     }
 
-    pub fn increment(&mut self, key: K) {
+    pub fn increment<Q: ?Sized>(&mut self, key: &Q) where Q: Hash, K: Borrow<Q> {
         self.add(key, 1)
     }
 
-    pub fn estimate(&self, key: K) -> $Counter {
+    pub fn estimate<Q: ?Sized>(&self, key: &Q) -> $Counter where Q: Hash, K: Borrow<Q> {
         let mut hashes = [0u64, 0u64];
         (0..self.k_num)
             .map(|k_i| {
-                let offset = self.offset(&mut hashes, &key, k_i);
+                let offset = self.offset(&mut hashes, key, k_i);
                 self.counters[k_i][offset]
             })
             .min()
@@ -147,7 +148,8 @@ impl<K> $CountMinSketch<K>
         FastHasher::new_with_keys(Rand::rand(&mut rng), Rand::rand(&mut rng))
     }
 
-    fn offset(&self, hashes: &mut [u64; 2], key: &K, k_i: usize) -> usize {
+    fn offset<Q: ?Sized>(&self, hashes: &mut [u64; 2], key: &Q, k_i: usize)
+    -> usize where Q: Hash, K: Borrow<Q> {
         if k_i < 2 {
             let sip = &mut self.hashers[k_i as usize].clone();
             key.hash(sip);
@@ -175,7 +177,7 @@ mod tests {
     fn test_overflow() {
         use CountMinSketch8;
 
-        let mut cms = CountMinSketch8::new(100, 0.95, 10.0).unwrap();
+        let mut cms = CountMinSketch8::<&str>::new(100, 0.95, 10.0).unwrap();
         for _ in 0..300 {
             cms.increment("key");
         }
@@ -186,7 +188,7 @@ mod tests {
     fn test_increment() {
         use CountMinSketch16;
 
-        let mut cms = CountMinSketch16::new(100, 0.95, 10.0).unwrap();
+        let mut cms = CountMinSketch16::<&str>::new(100, 0.95, 10.0).unwrap();
         for _ in 0..300 {
             cms.increment("key");
         }
@@ -197,16 +199,16 @@ mod tests {
     fn test_increment_multi() {
         use CountMinSketch64;
 
-        let mut cms = CountMinSketch64::new(100, 0.99, 2.0).unwrap();
+        let mut cms = CountMinSketch64::<u64>::new(100, 0.99, 2.0).unwrap();
         for i in 0..1_000_000 {
-            cms.increment(i % 100);
+            cms.increment(&(i % 100));
         }
         for key in 0..100 {
-            assert!(cms.estimate(key) >= 9_000);
+            assert!(cms.estimate(&key) >= 9_000);
         }
         cms.reset();
         for key in 0..100 {
-            assert!(cms.estimate(key) < 11_000);
+            assert!(cms.estimate(&key) < 11_000);
         }
     }
 }
