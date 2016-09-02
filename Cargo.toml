@@ -1,0 +1,15 @@
+[package]
+name = "count-min-sketch"
+description = "Count-min-sketch implementation"
+version = "0.1.0"
+homepage = "https://github.com/jedisct1/rust-count-min-sketch"
+keywords = ["sketching"]
+license = "MIT"
+authors = ["Frank Denis <github@pureftpd.org>"]
+
+[features]
+nightly = [ ]
+
+[dependencies]
+clippy = { git = "https://github.com/Manishearth/rust-clippy", optional = true }
+rand = "~0.3.14"
