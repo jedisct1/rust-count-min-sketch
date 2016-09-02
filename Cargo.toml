@@ -9,7 +9,8 @@ authors = ["Frank Denis <github@pureftpd.org>"]
 
 [features]
 nightly = [ ]
+default = [ ]
 
 [dependencies]
-clippy = { git = "https://github.com/Manishearth/rust-clippy", optional = true }
+clippy = {version = "*", optional = true}
 rand = "~0.3.14"
