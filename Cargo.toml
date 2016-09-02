@@ -12,5 +12,5 @@ nightly = [ ]
 default = [ ]
 
 [dependencies]
-clippy = {version = "*", optional = true}
+clippy = {version = ">=0.0.87", optional = true}
 rand = "~0.3.14"
