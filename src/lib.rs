@@ -1,23 +1,16 @@
-#![cfg_attr(feature="nightly", feature(sip_hash_13))]
 #![cfg_attr(feature="clippy", feature(plugin))]
 #![cfg_attr(feature="clippy", plugin(clippy))]
 
 extern crate rand;
+extern crate siphasher;
 
 use rand::Rand;
 use std::borrow::Borrow;
 use std::cmp::max;
 use std::hash::{Hash, Hasher};
 
-#[cfg(feature = "nightly")]
-use std::hash::SipHasher13;
-#[cfg(feature = "nightly")]
+use siphasher::sip::SipHasher13;
 type FastHasher = SipHasher13;
-
-#[cfg(not(feature = "nightly"))]
-use std::hash::SipHasher;
-#[cfg(not(feature = "nightly"))]
-type FastHasher = SipHasher;
 
 use std::marker::PhantomData;
 use std::mem;

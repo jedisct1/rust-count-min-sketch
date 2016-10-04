@@ -1,7 +1,7 @@
 [package]
 name = "count-min-sketch"
 description = "Count-min-sketch implementation"
-version = "0.1.1"
+version = "0.1.2"
 homepage = "https://github.com/jedisct1/rust-count-min-sketch"
 keywords = ["sketching"]
 license = "MIT"
@@ -14,3 +14,4 @@ default = [ ]
 [dependencies]
 clippy = {version = ">=0.0.87", optional = true}
 rand = "~0.3.14"
+siphasher = "~0.1"
