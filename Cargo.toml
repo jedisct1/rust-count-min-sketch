@@ -6,12 +6,17 @@ homepage = "https://github.com/jedisct1/rust-count-min-sketch"
 keywords = ["sketching"]
 license = "MIT"
 authors = ["Frank Denis <github@pureftpd.org>"]
+categories = ["algorithms", "data-structures"]
+
+[badges]
+travis-ci = { repository = "jedisct1/rust-count-min-sketch" }
+appveyor = { repository = "jedisct1/rust-count-min-sketch" }
 
 [features]
 nightly = [ ]
 default = [ ]
 
 [dependencies]
-clippy = {version = ">=0.0.87", optional = true}
-rand = "~0.3.14"
+clippy = {version = ">=0", optional = true}
+rand = "~0.3.15"
 siphasher = "~0.1"
