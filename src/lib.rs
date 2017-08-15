@@ -1,5 +1,5 @@
-#![cfg_attr(feature="clippy", feature(plugin))]
-#![cfg_attr(feature="clippy", plugin(clippy))]
+#![cfg_attr(feature = "clippy", feature(plugin))]
+#![cfg_attr(feature = "clippy", plugin(clippy))]
 
 extern crate rand;
 extern crate siphasher;
@@ -128,7 +128,7 @@ impl<K> $CountMinSketch<K>
 
     fn mask(width: usize) -> usize {
         assert!(width > 1);
-        assert!(width & (width - 1) == 0);
+        assert_eq!(width & (width - 1), 0);
         width - 1
     }
 
@@ -174,7 +174,7 @@ mod tests {
         for _ in 0..300 {
             cms.increment("key");
         }
-        assert!(cms.estimate("key") == u8::max_value());
+        assert_eq!(cms.estimate("key"), u8::max_value());
     }
 
     #[test]
@@ -185,7 +185,7 @@ mod tests {
         for _ in 0..300 {
             cms.increment("key");
         }
-        assert!(cms.estimate("key") == 300);
+        assert_eq!(cms.estimate("key"), 300);
     }
 
     #[test]
