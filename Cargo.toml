@@ -1,12 +1,13 @@
 [package]
 name = "count-min-sketch"
 description = "Count-min-sketch implementation"
-version = "0.1.4"
+version = "0.1.5"
 homepage = "https://github.com/jedisct1/rust-count-min-sketch"
 keywords = ["sketching"]
 license = "MIT"
 authors = ["Frank Denis <github@pureftpd.org>"]
 categories = ["algorithms", "data-structures"]
+edition = "2018"
 
 [badges]
 travis-ci = { repository = "jedisct1/rust-count-min-sketch" }
@@ -17,6 +18,5 @@ nightly = [ ]
 default = [ ]
 
 [dependencies]
-clippy = {version = ">=0", optional = true}
-rand = "~0.4"
-siphasher = "~0.2"
+rand = "0.6"
+siphasher = "0.3"
