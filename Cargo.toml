@@ -18,5 +18,5 @@ nightly = [ ]
 default = [ ]
 
 [dependencies]
-rand = "0.6"
+rand = "0.7"
 siphasher = "0.3"
