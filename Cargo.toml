@@ -18,5 +18,5 @@ default = [ ]
 
 [dependencies]
 clippy = {version = ">=0", optional = true}
-rand = "~0.7"
-siphasher = "~0.2"
+rand = "0.7"
+siphasher = "0.3"
