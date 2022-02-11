@@ -1,5 +1,3 @@
-use rand;
-
 use rand::RngCore;
 use std::borrow::Borrow;
 use std::cmp::max;
@@ -38,11 +36,11 @@ macro_rules! cms_define {
                 let offsets = vec![0; k_num];
                 let hashers = [Self::sip_new(), Self::sip_new()];
                 let cms = $CountMinSketch {
-                    counters: counters,
-                    offsets: offsets,
-                    hashers: hashers,
+                    counters,
+                    offsets,
+                    hashers,
                     mask: Self::mask(width),
-                    k_num: k_num,
+                    k_num,
                     reset_idx: 0,
                     phantom_k: PhantomData,
                 };
