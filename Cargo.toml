@@ -15,4 +15,4 @@ appveyor = { repository = "jedisct1/rust-count-min-sketch" }
 
 [dependencies]
 rand = "0.8.0"
-siphasher = "0.3"
+siphasher = "1.0"
