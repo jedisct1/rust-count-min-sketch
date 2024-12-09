@@ -1,7 +1,7 @@
 [package]
 name = "count-min-sketch"
 description = "Count-min-sketch implementation"
-version = "0.1.7"
+version = "0.1.8"
 homepage = "https://github.com/jedisct1/rust-count-min-sketch"
 keywords = ["sketching"]
 license = "MIT"
@@ -14,5 +14,5 @@ travis-ci = { repository = "jedisct1/rust-count-min-sketch" }
 appveyor = { repository = "jedisct1/rust-count-min-sketch" }
 
 [dependencies]
-rand = "0.8.0"
-siphasher = "0.3"
+rand = "0.8.5"
+siphasher = "1.0"
