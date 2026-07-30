@@ -3,16 +3,13 @@ name = "count-min-sketch"
 description = "Count-min-sketch implementation"
 version = "0.1.8"
 homepage = "https://github.com/jedisct1/rust-count-min-sketch"
+repository = "https://github.com/jedisct1/rust-count-min-sketch"
 keywords = ["sketching"]
 license = "MIT"
 authors = ["Frank Denis <github@pureftpd.org>"]
 categories = ["algorithms", "data-structures"]
 edition = "2018"
 
-[badges]
-travis-ci = { repository = "jedisct1/rust-count-min-sketch" }
-appveyor = { repository = "jedisct1/rust-count-min-sketch" }
-
 [dependencies]
-rand = "0.8.5"
+getrandom = "0.3"
 siphasher = "1.0"

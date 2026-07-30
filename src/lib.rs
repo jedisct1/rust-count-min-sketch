@@ -1,20 +1,22 @@
-use rand::RngCore;
+//! Count-min sketch with conservative updates.
+//!
+//! Four variants are provided, differing only in the width of their
+//! counters: [`CountMinSketch8`], [`CountMinSketch16`], [`CountMinSketch32`]
+//! and [`CountMinSketch64`].
+
 use std::borrow::Borrow;
 use std::cmp::max;
-use std::hash::{Hash, Hasher};
-
-use siphasher::sip::SipHasher13;
-type FastHasher = SipHasher13;
-
+use std::hash::Hash;
 use std::marker::PhantomData;
 use std::mem;
+
+use siphasher::sip128::{Hasher128, SipHasher13};
 
 macro_rules! cms_define {
     ($CountMinSketch:ident, $Counter:ty) => {
         pub struct $CountMinSketch<K> {
-            counters: Vec<Vec<$Counter>>,
-            offsets: Vec<usize>,
-            hashers: [FastHasher; 2],
+            counters: Vec<$Counter>,
+            sip_key: [u8; 16],
             mask: usize,
             k_num: usize,
             reset_idx: usize,
@@ -32,65 +34,48 @@ macro_rules! cms_define {
             ) -> Result<Self, &'static str> {
                 let width = Self::optimal_width(capacity, tolerance);
                 let k_num = Self::optimal_k_num(probability);
-                let counters: Vec<Vec<$Counter>> = vec![vec![0; width]; k_num];
-                let offsets = vec![0; k_num];
-                let hashers = [Self::sip_new(), Self::sip_new()];
-                let cms = $CountMinSketch {
-                    counters,
-                    offsets,
-                    hashers,
-                    mask: Self::mask(width),
+                Ok(Self {
+                    counters: vec![0; width * k_num],
+                    sip_key: Self::random_key(),
+                    mask: width - 1,
                     k_num,
                     reset_idx: 0,
                     phantom_k: PhantomData,
-                };
-                Ok(cms)
+                })
             }
 
-            pub fn add<Q: ?Sized>(&mut self, key: &Q, value: $Counter)
+            pub fn add<Q>(&mut self, key: &Q, value: $Counter)
             where
-                Q: Hash,
+                Q: Hash + ?Sized,
                 K: Borrow<Q>,
             {
-                let mut hashes = [0u64, 0u64];
-                let lowest = (0..self.k_num)
-                    .map(|k_i| {
-                        let offset = self.offset(&mut hashes, key, k_i);
-                        self.offsets[k_i] = offset;
-                        self.counters[k_i][offset]
-                    })
-                    .min()
-                    .unwrap();
+                let (h1, h2) = self.hash(key);
+                let lowest = self.lowest(h1, h2);
+                let updated = lowest.saturating_add(value);
                 for k_i in 0..self.k_num {
-                    let offset = self.offsets[k_i];
-                    if self.counters[k_i][offset] == lowest {
-                        self.counters[k_i][offset] =
-                            self.counters[k_i][offset].saturating_add(value);
+                    let offset = self.offset(h1, h2, k_i);
+                    let counter = &mut self.counters[offset];
+                    if *counter == lowest {
+                        *counter = updated;
                     }
                 }
             }
 
-            pub fn increment<Q: ?Sized>(&mut self, key: &Q)
+            pub fn increment<Q>(&mut self, key: &Q)
             where
-                Q: Hash,
+                Q: Hash + ?Sized,
                 K: Borrow<Q>,
             {
                 self.add(key, 1)
             }
 
-            pub fn estimate<Q: ?Sized>(&self, key: &Q) -> $Counter
+            pub fn estimate<Q>(&self, key: &Q) -> $Counter
             where
-                Q: Hash,
+                Q: Hash + ?Sized,
                 K: Borrow<Q>,
             {
-                let mut hashes = [0u64, 0u64];
-                (0..self.k_num)
-                    .map(|k_i| {
-                        let offset = self.offset(&mut hashes, key, k_i);
-                        self.counters[k_i][offset]
-                    })
-                    .min()
-                    .unwrap()
+                let (h1, h2) = self.hash(key);
+                self.lowest(h1, h2)
             }
 
             pub fn estimate_memory(
@@ -104,20 +89,14 @@ macro_rules! cms_define {
             }
 
             pub fn clear(&mut self) {
-                for k_i in 0..self.k_num {
-                    for counter in &mut self.counters[k_i] {
-                        *counter = 0
-                    }
-                }
+                self.counters.fill(0);
                 self.reset_idx = 0;
-                self.hashers = [Self::sip_new(), Self::sip_new()];
+                self.sip_key = Self::random_key();
             }
 
             pub fn reset(&mut self) {
-                for k_i in 0..self.k_num {
-                    for counter in &mut self.counters[k_i] {
-                        *counter /= 2;
-                    }
+                for counter in &mut self.counters {
+                    *counter /= 2;
                 }
                 self.reset_idx = 0;
             }
@@ -125,9 +104,10 @@ macro_rules! cms_define {
             pub fn reset_next(&mut self) -> Option<usize> {
                 let idx = self.reset_idx;
                 for k_i in 0..self.k_num {
-                    self.counters[k_i][idx] /= 2
+                    let offset = self.slot(k_i, idx);
+                    self.counters[offset] /= 2;
                 }
-                let next = idx.wrapping_add(1) & self.mask;
+                let next = (idx + 1) & self.mask;
                 self.reset_idx = next;
                 if next != 0 {
                     Some(next)
@@ -144,42 +124,56 @@ macro_rules! cms_define {
                     .expect("Width would be way too large")
             }
 
-            fn mask(width: usize) -> usize {
-                assert!(width > 1);
-                assert_eq!(width & (width - 1), 0);
-                width - 1
-            }
-
             fn optimal_k_num(probability: f64) -> usize {
                 max(1, ((1.0 - probability).ln() / 0.5f64.ln()) as usize)
             }
 
-            fn sip_new() -> FastHasher {
-                let mut rng = rand::thread_rng();
-                FastHasher::new_with_keys(rng.next_u64(), rng.next_u64())
+            fn random_key() -> [u8; 16] {
+                let mut key = [0u8; 16];
+                getrandom::fill(&mut key).expect("random source unavailable");
+                key
             }
 
-            fn offset<Q: ?Sized>(&self, hashes: &mut [u64; 2], key: &Q, k_i: usize) -> usize
+            fn hash<Q>(&self, key: &Q) -> (u64, u64)
             where
-                Q: Hash,
-                K: Borrow<Q>,
+                Q: Hash + ?Sized,
             {
-                if k_i < 2 {
-                    let sip = &mut self.hashers[k_i as usize].clone();
-                    key.hash(sip);
-                    let hash = sip.finish();
-                    hashes[k_i as usize] = hash;
-                    hash as usize & self.mask
-                } else {
-                    hashes[0]
-                        .wrapping_add((k_i as u64).wrapping_mul(hashes[1]) % 0xffffffffffffffc5)
-                        as usize
-                        & self.mask
+                let mut sip = SipHasher13::new_with_key(&self.sip_key);
+                key.hash(&mut sip);
+                sip.finish128().as_u64()
+            }
+
+            fn lowest(&self, h1: u64, h2: u64) -> $Counter {
+                let mut lowest = <$Counter>::MAX;
+                for k_i in 0..self.k_num {
+                    lowest = lowest.min(self.counters[self.offset(h1, h2, k_i)]);
+                }
+                lowest
+            }
+
+            #[inline]
+            fn offset(&self, h1: u64, h2: u64, k_i: usize) -> usize {
+                let column = h1.wrapping_add((k_i as u64).wrapping_mul(h2)) as usize & self.mask;
+                self.slot(k_i, column)
+            }
+
+            #[inline]
+            fn slot(&self, k_i: usize, column: usize) -> usize {
+                k_i * (self.mask + 1) + column
+            }
+        }
+
+        // A derive would add a `K: Clone` bound through PhantomData<K>.
+        impl<K> Clone for $CountMinSketch<K> {
+            fn clone(&self) -> Self {
+                Self {
+                    counters: self.counters.clone(),
+                    ..*self
                 }
             }
         }
     };
-} // macro_rules! cms_define
+}
 
 cms_define!(CountMinSketch8, u8);
 cms_define!(CountMinSketch16, u16);
@@ -188,21 +182,19 @@ cms_define!(CountMinSketch64, u64);
 
 #[cfg(test)]
 mod tests {
+    use crate::{CountMinSketch16, CountMinSketch32, CountMinSketch64, CountMinSketch8};
+
     #[test]
     fn test_overflow() {
-        use crate::CountMinSketch8;
-
         let mut cms = CountMinSketch8::<&str>::new(100, 0.95, 10.0).unwrap();
         for _ in 0..300 {
             cms.increment("key");
         }
-        assert_eq!(cms.estimate("key"), u8::max_value());
+        assert_eq!(cms.estimate("key"), u8::MAX);
     }
 
     #[test]
     fn test_increment() {
-        use crate::CountMinSketch16;
-
         let mut cms = CountMinSketch16::<&str>::new(100, 0.95, 10.0).unwrap();
         for _ in 0..300 {
             cms.increment("key");
@@ -212,8 +204,6 @@ mod tests {
 
     #[test]
     fn test_increment_multi() {
-        use crate::CountMinSketch64;
-
         let mut cms = CountMinSketch64::<u64>::new(100, 0.99, 2.0).unwrap();
         for i in 0..1_000_000 {
             cms.increment(&(i % 100));
@@ -225,5 +215,31 @@ mod tests {
         for key in 0..100 {
             assert!(cms.estimate(&key) < 11_000);
         }
+    }
+
+    #[test]
+    fn test_clone_and_clear() {
+        let mut cms = CountMinSketch32::<String>::new(100, 0.95, 10.0).unwrap();
+        for _ in 0..9 {
+            cms.increment("key");
+        }
+        cms.increment(&"key".to_string());
+        let snapshot = cms.clone();
+        cms.increment("key");
+        assert_eq!(snapshot.estimate("key"), 10);
+        assert_eq!(cms.estimate("key"), 11);
+        cms.clear();
+        assert_eq!(cms.estimate("key"), 0);
+        assert_eq!(snapshot.estimate("key"), 10);
+    }
+
+    #[test]
+    fn test_reset_next_full_cycle() {
+        let mut cms = CountMinSketch32::<&str>::new(100, 0.95, 10.0).unwrap();
+        for _ in 0..100 {
+            cms.increment("key");
+        }
+        while cms.reset_next().is_some() {}
+        assert_eq!(cms.estimate("key"), 50);
     }
 }
